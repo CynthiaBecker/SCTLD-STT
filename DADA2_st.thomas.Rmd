@@ -1,0 +1,483 @@
+---
+title: "DADA2"
+author: "Cynthia Becker"
+date: "3/3/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## DADA2 pipeline with St. Thomas samples
+
+
+First load DADA2 package - instructions on installation from: https://benjjneb.github.io/dada2/dada-installation.html
+Note: You must have Xcode, a Mac developer tool downloaded to run the following code. 
+
+```{r}
+if (!requireNamespace("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
+BiocManager::install("dada2")
+
+library(dada2)
+packageVersion("dada2") #Version 1.17.3
+```
+
+According to the DADA2 tutorial, the data must follow the following criteria:
+
+1. Samples have been demultiplexed, i.e. split into individual per-sample fastq files.
+2. Non-biological nucleotides have been removed, e.g. primers, adapters, linkers, etc.
+3. If paired-end sequencing data, the forward and reverse fastq files contain reads in matched order.
+
+Note: I am not 100% sure if the samples I have follow all these criteria, but I am fairly certain that the files I get from UGA and download from BaseSpace comply with all these criteria. 
+
+Lucky for us the example samples used on the DADA2 tutorial are also Illumina MiSeq 2x250 reads of the V4 region of the 16S rRNA gene! (This is what we use, too)
+
+```{r}
+path <- "~/Documents/SequencingData/iSeq_STT_All"
+list.files(path) #verify you have all the files and they are in the correct format
+
+#read in names of fastq.gz files
+fnFs <- sort(list.files(path, pattern = "_R1_001.fastq", full.names = TRUE))
+fnRs <- sort(list.files(path, pattern = "_R2_001.fastq", full.names = TRUE))
+#extract sample names (may need to be changed depending on filename format). Mine output as "Sample-#"
+sample.names <- sapply(strsplit(basename(fnFs), "_"), `[`, 1)
+sample.names #check the names
+```
+
+#####First thing to do is inspect the read quality profiles
+```{r}
+plotQualityProfile(fnFs[1:4]) 
+plotQualityProfile(fnFs[114:119]) #this checks quality of the DNA controls
+plotQualityProfile(fnFs[120:122]) #this checks quality of the PCR controls
+plotQualityProfile(fnFs[123:128]) #this checks quality of the Mock and PhiX
+```
+Recap: I can see for the general samples, the reads all look pretty high quality. The DNA extraction controls are variable, but this is okay since we are more interested in the sample reads being of high quality. Examples: D4 is much lower quality (Q30 drops). The PCR controls are worse, with only about 50% of reads extending the full 150 bp (red line). The PhiX has a lot of reads and is of Okay quality. The run 1 phiX is not very nice looking. This run, though, the phiX was overloaded. I wonder if this affected the read quality. The second and third runs, which had better loading concentrations of PhiX looked much better. The mock communities had quite high read counts, and the quality is high, with all 150 bases maintaining an average quality score above 30. Because these reads are all of pretty high quality, I will onlly truncate the last 5 bp of each read. I will need to cut off the beginning, though because the primers were sequenced.
+
+I am only interested in analyzing the forward reads for this procedure, so I am going to ignore plotting quality profiles of the reverse reads. 
+
+##Filter and trim files
+Put all the files in a /filtered/ subdirectory
+`maxN=` is the number of Ns (dada2 requires none)
+`maxEE=` is the number of expected error allowed in a read. I chose 2, which is how many the tutorial selected.
+Note: This took about 3 minutes
+```{r}
+filtFs <- file.path(path, "filtered2", paste0(sample.names, "_F_filt.fastq.gz"))
+names(filtFs) <- sample.names
+out <- filterAndTrim(fnFs, filtFs, trimLeft = 19, truncLen = 145, maxN = 0, maxEE = 1, rm.phix = TRUE, compress = TRUE) #trimleft is 19 because that is how long the 515FY primer is. #trunLen is 145 because I want to cut off the last 5 bp of the 150 bp read. 
+out
+```
+Results when the maximum number of expected errors was 1. In general, i lost about 10,000 sequence reads in each sample. I still have quite a lot of sequence reads. I like that it is pretty consistent across samples that none of the samples lost significant amounts of sequences.
+Creating output directory: /Users/cynthiabecker/Documents/SequencingData/iSeq_STT_All/filtered
+                                         reads.in reads.out
+100tiss_S31_L001_R1_001.fastq.gz           108860     97355
+102tiss_S3_L001_R1_001.fastq.gz            124762    110698
+103tiss_S26_L001_R1_001.fastq.gz           115751    110158
+104tiss_S32_L001_R1_001.fastq.gz           111646     97627
+105tiss_S25_L001_R1_001.fastq.gz            99156     88860
+163eco_S8_L001_R1_001.fastq.gz              82955     78244
+164eco_S4_L001_R1_001.fastq.gz             109855    104637
+165eco_S1_L001_R1_001.fastq.gz              94685     84308
+166eco_S9_L001_R1_001.fastq.gz              75213     70727
+167eco_S2_L001_R1_001.fastq.gz              99519     87940
+168eco_S8_L001_R1_001.fastq.gz             102779     92054
+169eco_S5_L001_R1_001.fastq.gz             109515    103592
+170eco_S6_L001_R1_001.fastq.gz             110631    104569
+171eco_S9_L001_R1_001.fastq.gz             108746     95451
+172eco_S10_L001_R1_001.fastq.gz            109517     96967
+173eco_S11_L001_R1_001.fastq.gz            105235     92403
+174eco_S10_L001_R1_001.fastq.gz            103011     97751
+175eco_S12_L001_R1_001.fastq.gz            111439     97909
+176eco_S13_L001_R1_001.fastq.gz            113548     99847
+177eco_S11_L001_R1_001.fastq.gz            101165     95939
+178eco_S12_L001_R1_001.fastq.gz            117609    111166
+179eco_S7_L001_R1_001.fastq.gz             112898    107431
+180eco_S3_L001_R1_001.fastq.gz             113754    101739
+181eco_S14_L001_R1_001.fastq.gz            110348     97290
+182eco_S4_L001_R1_001.fastq.gz             109364     97715
+183eco_S15_L001_R1_001.fastq.gz            101392     91036
+184eco_S5_L001_R1_001.fastq.gz             113492    100849
+185eco_S13_L001_R1_001.fastq.gz            107537    101121
+186eco_S6_L001_R1_001.fastq.gz             111787     99570
+187eco_S16_L001_R1_001.fastq.gz            108236     97056
+188eco_S14_L001_R1_001.fastq.gz            102230     96789
+189eco_S15_L001_R1_001.fastq.gz            108406    102926
+190eco_S17_L001_R1_001.fastq.gz            115461    102124
+191eco_S18_L001_R1_001.fastq.gz            117684    105126
+192eco_S7_L001_R1_001.fastq.gz             103932     92720
+193eco_S8_L001_R1_001.fastq.gz             106513     95705
+194eco_S16_L001_R1_001.fastq.gz            114806    108881
+195eco_S9_L001_R1_001.fastq.gz             117157    104326
+196eco_S17_L001_R1_001.fastq.gz            125318    118497
+197eco_S10_L001_R1_001.fastq.gz            111823     99350
+198eco_S11_L001_R1_001.fastq.gz            100335     87078
+199eco_S18_L001_R1_001.fastq.gz            125326    119130
+200eco_S19_L001_R1_001.fastq.gz            127863    121554
+201eco_S19_L001_R1_001.fastq.gz            113303    100437
+202eco_S20_L001_R1_001.fastq.gz            122719    108664
+203eco_S21_L001_R1_001.fastq.gz            109522     98113
+204eco_S12_L001_R1_001.fastq.gz            109357     97498
+205eco_S22_L001_R1_001.fastq.gz            120128    106167
+206eco_S23_L001_R1_001.fastq.gz            110653     98984
+207eco_S24_L001_R1_001.fastq.gz            108995     98077
+208eco_S13_L001_R1_001.fastq.gz             83308     70127
+212tiss_S27_L001_R1_001.fastq.gz           137898    130168
+214tiss_S28_L001_R1_001.fastq.gz           128867    121818
+215tiss_S29_L001_R1_001.fastq.gz           117611    111140
+217tiss_S30_L001_R1_001.fastq.gz           127010    119274
+218tiss_S31_L001_R1_001.fastq.gz            98385     92239
+219tiss_S26_L001_R1_001.fastq.gz           109568     98606
+220tiss_S33_L001_R1_001.fastq.gz           104557     92860
+222tiss_S34_L001_R1_001.fastq.gz           111690     98753
+224tiss_S32_L001_R1_001.fastq.gz           104999     99654
+225tis_S40_L001_R1_001.fastq.gz             94906     83456
+227tiss_S33_L001_R1_001.fastq.gz           123006    115610
+228tiss_S34_L001_R1_001.fastq.gz           117936    111598
+229tiss_S35_L001_R1_001.fastq.gz           104765     98600
+230tiss_S27_L001_R1_001.fastq.gz           111228     94630
+232tiss_S41_L001_R1_001.fastq.gz           108566     95195
+234tiss_S36_L001_R1_001.fastq.gz           129689    122483
+235tiss_S28_L001_R1_001.fastq.gz           100249     89090
+238tss_S37_L001_R1_001.fastq.gz            118967    111977
+248tiss_S29_L001_R1_001.fastq.gz           107497     95292
+250tiss_S38_L001_R1_001.fastq.gz           119744    112764
+251tiss_S39_L001_R1_001.fastq.gz           130216    123852
+253tiss_S30_L001_R1_001.fastq.gz           113166    100033
+256tiss_S31_L001_R1_001.fastq.gz            96115     85485
+259tiss_S32_L001_R1_001.fastq.gz            98891     87212
+262tiss_S35_L001_R1_001.fastq.gz            96112     83010
+264tiss_S40_L001_R1_001.fastq.gz           116626    111562
+266tiss_S36_L001_R1_001.fastq.gz           118692    103020
+268eco_S20_L001_R1_001.fastq.gz            125436    118385
+269eco_S21_L001_R1_001.fastq.gz            130741    123529
+270eco_S14_L001_R1_001.fastq.gz            102753     90140
+271eco_S25_L001_R1_001.fastq.gz            103540     90846
+272eco_S22_L001_R1_001.fastq.gz            110530    104671
+273eco_S15_L001_R1_001.fastq.gz            101462     89762
+274eco_S16_L001_R1_001.fastq.gz            117126    103975
+75Ltiss_S37_L001_R1_001.fastq.gz           101192     90954
+76Ltiss_S2_L001_R1_001.fastq.gz            126961    120335
+77Ltiss_S33_L001_R1_001.fastq.gz           107206     96287
+78Ltiss_S41_L001_R1_001.fastq.gz           116545    111606
+79Ltiss_S42_L001_R1_001.fastq.gz           113688    108747
+80Ltiss_S4_L001_R1_001.fastq.gz            118082    104065
+81Ltiss_S34_L001_R1_001.fastq.gz           120649    108300
+81tiss_S27_L001_R1_001.fastq.gz            115724    103100
+82Ltiss_S38_L001_R1_001.fastq.gz            95552     84825
+82tiss_S18_L001_R1_001.fastq.gz            104301     93847
+83Ltiss_S35_L001_R1_001.fastq.gz           128453    114396
+83tiss_S28_L001_R1_001.fastq.gz             85811     68097
+84Ltiss_S5_L001_R1_001.fastq.gz            115328    100740
+84tiss_S19_L001_R1_001.fastq.gz            125121    111568
+85tiss_S24_L001_R1_001.fastq.gz             65030     61518
+86tiss_S39_L001_R1_001.fastq.gz             98868     88004
+87tiss_S7_L001_R1_001.fastq.gz             115946    102586
+88tiss_S1_L001_R1_001.fastq.gz             108577     97532
+89tiss_S20_L001_R1_001.fastq.gz            129105    113237
+90tiss_S29_L001_R1_001.fastq.gz            109853     97020
+91tiss_S25_L001_R1_001.fastq.gz            134078    126256
+92tiss_S2_L001_R1_001.fastq.gz             103807     92461
+93tiss_S21_L001_R1_001.fastq.gz            123438    110346
+94tiss_S22_L001_R1_001.fastq.gz            114721    101139
+95tiss_S23_L001_R1_001.fastq.gz             90554     79014
+97tiss_S1_L001_R1_001.fastq.gz             125469    119951
+98tiss_S30_L001_R1_001.fastq.gz            111705     99547
+99tiss_S24_L001_R1_001.fastq.gz             98759     84443
+D1_S6_L001_R1_001.fastq.gz                  16309     13375
+D2_S3_L001_R1_001.fastq.gz                  15787     14690
+D3_S36_L001_R1_001.fastq.gz                 29746     25873
+D4_S26_L001_R1_001.fastq.gz                 12354      2007
+D5_S23_L001_R1_001.fastq.gz                 49688     34662
+D6_S17_L001_R1_001.fastq.gz                 39959     29110
+H2Ocontrol_S44_L001_R1_001.fastq.gz         22086     10727
+H2Ocontrol-run1_S43_L001_R1_001.fastq.gz    21782      9023
+H2Ocontrol-run3_S38_L001_R1_001.fastq.gz    23791     10239
+MockE_S43_L001_R1_001.fastq.gz              96099     90139
+MockE-run1_S42_L001_R1_001.fastq.gz         74857     64034
+MockE-run3_S37_L001_R1_001.fastq.gz         92865     80557
+Undeterminedrun1_L001_R1_001.fastq.gz     1593732    308010
+Undeterminedrun2_L001_R1_001.fastq.gz     1946169    261195
+Undeterminedrun3_L001_R1_001.fastq.gz     1604899    212762
+
+
+##Learn the error rates
+Note: This parameter learning is computationally intense. It took about 10 minutes to run errE
+Note - If there are very few sequences (to none) that passed quality filtering, you have to remove samples from filtFs or filtRs that don't have any sequences in them...otherwise you get a warning `Error in open.connection(con, "rb") : cannot open the connection` Do this successfully with the first few lines of code that is commented out here.
+```{r}
+errF <- learnErrors(filtFs, multithread = TRUE)
+```
+
+##Plot Error Rates
+```{r}
+plotErrors(errF, nominalQ = TRUE)
+```
+These error plots all look pretty good. The dots all follow a pretty linear relationshikp, which is what I would expect. As the Q30 score goes up, the error frequency decreases. 
+
+
+##Sample Inference - The main dada2 step of making OTUs
+Note: Code chunk started at 20:46 and ended at 21:00
+This took a long time and I couldn't do much else on my computer...took up all my RAM
+```{r}
+dadaFs <- dada(filtFs, err=errF, multithread=TRUE)
+dadaFs[[10]]
+```
+
+Notes: My negative controls have a lot of sequences...
+
+####Construct ASV table
+We can now construct an amplicon sequence variant table (ASV) table, a higher-resolution version of the OTU table produced by traditional methods.
+```{r}
+seqtab <- makeSequenceTable(dadaFs)
+dim(seqtab) #should have 128 samples - looks like I have 18581 different ASVs (Yay palindromes!)
+```
+
+Notes: Based on the output, I have 18,581 unique sequences.
+
+```{r}
+# Inspect distribution of sequence lengths
+table(nchar(getSequences(seqtab)))
+```
+
+##Remove chimeras 
+```{r}
+seqtab.nochim <- removeBimeraDenovo(seqtab, method="consensus", multithread=TRUE, verbose=TRUE)
+dim(seqtab.nochim)
+# Identified 1391 bimeras out of 18581 input sequences.
+
+1391/18581 #calculate number of bimeras found
+```
+
+About 7.5% of the ASVs had bimeras.
+
+```{r}
+sum(seqtab.nochim)/sum(seqtab)
+```
+
+Looks like about 7.5% of ASVs were chimeric, and 98% of reads were kept, so about 2% were chimeric reads. I now have 6641 different ASVs. 
+
+##Track reads through the pipeline
+```{r}
+getN <- function(x) sum(getUniques(x))
+track <- cbind(out, sapply(dadaFs, getN), rowSums(seqtab.nochim))
+# If processing a single sample, remove the sapply calls: e.g. replace sapply(dadaFs, getN) with getN(dadaFs)
+colnames(track) <- c("input", "filtered", "denoisedF", "nonchim")
+rownames(track) <- sample.names
+track
+```
+
+ input filtered denoisedF nonchim
+100tiss           108860    97355     97033   94935
+102tiss           124762   110698    109999  109072
+103tiss           115751   110158    109863  105042
+104tiss           111646    97627     97363   94917
+105tiss            99156    88860     88478   87206
+163eco             82955    78244     77441   76623
+164eco            109855   104637    103535  102274
+165eco             94685    84308     83512   82682
+166eco             75213    70727     70502   69822
+167eco             99519    87940     86952   86553
+168eco            102779    92054     91243   90432
+169eco            109515   103592    102612  101591
+170eco            110631   104569    103825  102765
+171eco            108746    95451     94610   93922
+172eco            109517    96967     95997   94988
+173eco            105235    92403     91610   90703
+174eco            103011    97751     96859   96001
+175eco            111439    97909     96720   95760
+176eco            113548    99847     98969   97890
+177eco            101165    95939     95080   94281
+178eco            117609   111166    110398  109720
+179eco            112898   107431    106564  104917
+180eco            113754   101739    101073  100050
+181eco            110348    97290     96716   95573
+182eco            109364    97715     96923   96015
+183eco            101392    91036     90474   89535
+184eco            113492   100849    100046   98586
+185eco            107537   101121    100394   99386
+186eco            111787    99570     98943   97762
+187eco            108236    97056     96465   95466
+188eco            102230    96789     95653   94192
+189eco            108406   102926    102242  101140
+190eco            115461   102124    101399  100142
+191eco            117684   105126    104279  102995
+192eco            103932    92720     92273   90458
+193eco            106513    95705     94987   94033
+194eco            114806   108881    108103  106889
+195eco            117157   104326    103614  102620
+196eco            125318   118497    117716  116409
+197eco            111823    99350     98494   97150
+198eco            100335    87078     86325   85605
+199eco            125326   119130    118322  116817
+200eco            127863   121554    120925  119141
+201eco            113303   100437     99665   98949
+202eco            122719   108664    108175  107009
+203eco            109522    98113     97173   96019
+204eco            109357    97498     96808   95824
+205eco            120128   106167    105326  104745
+206eco            110653    98984     98650   97852
+207eco            108995    98077     97180   95690
+208eco             83308    70127     69291   68527
+212tiss           137898   130168    129732  128036
+214tiss           128867   121818    121745  117501
+215tiss           117611   111140    110322  104426
+217tiss           127010   119274    117879  115179
+218tiss            98385    92239     91912   90209
+219tiss           109568    98606     98258   96929
+220tiss           104557    92860     92754   91949
+222tiss           111690    98753     98426   96298
+224tiss           104999    99654     99423   97975
+225tis             94906    83456     83211   80390
+227tiss           123006   115610    115163  113293
+228tiss           117936   111598    111277  109861
+229tiss           104765    98600     97958   96481
+230tiss           111228    94630     94264   93666
+232tiss           108566    95195     94862   94293
+234tiss           129689   122483    122231  118759
+235tiss           100249    89090     88738   87288
+238tss            118967   111977    110346  107011
+248tiss           107497    95292     94890   93861
+250tiss           119744   112764    112275  110827
+251tiss           130216   123852    123551  122390
+253tiss           113166   100033     99781   98114
+256tiss            96115    85485     85174   82458
+259tiss            98891    87212     86913   85728
+262tiss            96112    83010     82535   80426
+264tiss           116626   111562    111104  104618
+266tiss           118692   103020    102815  101807
+268eco            125436   118385    117330  116044
+269eco            130741   123529    122373  121107
+270eco            102753    90140     88902   88072
+271eco            103540    90846     89956   89263
+272eco            110530   104671    104025  102766
+273eco            101462    89762     88912   88006
+274eco            117126   103975    102913  101842
+75Ltiss           101192    90954     90680   88422
+76Ltiss           126961   120335    119413  117776
+77Ltiss           107206    96287     95949   94712
+78Ltiss           116545   111606    111397  109952
+79Ltiss           113688   108747    108572  106797
+80Ltiss           118082   104065    103131  100970
+81Ltiss           120649   108300    107633  103007
+81tiss            115724   103100    102694   99769
+82Ltiss            95552    84825     84404   83177
+82tiss            104301    93847     93544   90719
+83Ltiss           128453   114396    113884  110287
+83tiss             85811    68097     67651   66412
+84Ltiss           115328   100740     99627   98592
+84tiss            125121   111568    111415  110049
+85tiss             65030    61518     61141   60105
+86tiss             98868    88004     87531   86772
+87tiss            115946   102586    102383   99790
+88tiss            108577    97532     97312   95281
+89tiss            129105   113237    112890  110766
+90tiss            109853    97020     96646   95300
+91tiss            134078   126256    125787  123386
+92tiss            103807    92461     92105   89011
+93tiss            123438   110346    110168  109630
+94tiss            114721   101139    100503   98241
+95tiss             90554    79014     78713   78479
+97tiss            125469   119951    119545  115929
+98tiss            111705    99547     99250   97577
+99tiss             98759    84443     83773   83224
+D1                 16309    13375     13225   13225
+D2                 15787    14690     14569   14569
+D3                 29746    25873     25726   25726
+D4                 12354     2007      1908    1908
+D5                 49688    34662     34567   34118
+D6                 39959    29110     28966   26960
+H2Ocontrol         22086    10727     10683   10683
+H2Ocontrol-run1    21782     9023      8928    8928
+H2Ocontrol-run3    23791    10239     10180   10180
+MockE              96099    90139     89968   86172
+MockE-run1         74857    64034     63861   61401
+MockE-run3         92865    80557     80272   76631
+Undeterminedrun1 1593732   308010    304857  300994
+Undeterminedrun2 1946169   261195    258346  254826
+Undeterminedrun3 1604899   212762    210736  208496
+
+
+##Assign taxonomy 
+I am really only interested in the coarser taxonomic assignments, so no need to assign taxonomy to species level. I have included the code to do it anyway. Must make sure the training set is in the correct file. This will likely take longer than all other steps. Took about an hour for this dataset. 
+```{r}
+taxa <- assignTaxonomy(seqtab.nochim, "~/Documents/SequencingData/iSeq_STT_All/taxonomy/silva_nr_v132_train_set.fa.gz", multithread = TRUE, minBoot = 50) #start with the default bootstrap of 50, but you can go up to 80 if you want.
+
+#taxa <- addSpecies(taxa, "~/Documents/SequencingData/iSeq_STT_All/taxonomy/silva_species_assignment_v132.fa.gz", verbose = TRUE, allowMultiple = 3) 
+#only let there be 3 multiple assignments, and if not, it writes NA
+```
+For the `addSpecies` section, I received an error: `Error: vector memory exhausted (limit reached?)`, and so I will just skip over the species assignment for now since I am not 100% in need of this right now.
+
+Look at some taxonomic assignments...
+```{r}
+taxa.print <- taxa
+rownames(taxa.print) <- NULL
+head(taxa.print)
+```
+
+##Evaluate DADA2 accuracy on the mock community
+```{r}
+#my seqtab.nochim has annoying rownames, so I will rename them:
+rownames(seqtab.nochim) <- sample.names
+unqs.MockE <- seqtab.nochim["MockE",]
+unqs.MockE <- sort(unqs.MockE[unqs.MockE>0], decreasing=TRUE) # Drop ASVs absent in the Mock
+cat("DADA2 inferred", length(unqs.MockE), "sample sequences present in the Mock community.\n")
+
+mock.ref <- getSequences(file.path(path, "HMP_MOCK.v35.fasta"))
+match.ref <- sum(sapply(names(unqs.MockE), function(x) any(grepl(x, mock.ref))))
+cat("Of those,", sum(match.ref), "were exact matches to the expected reference sequences.\n")
+
+rownames(seqtab.nochim) <- sample.names
+unqs.MockE <- seqtab.nochim["MockE-run1",]
+unqs.MockE <- sort(unqs.MockE[unqs.MockE>0], decreasing=TRUE) # Drop ASVs absent in the Mock
+cat("DADA2 inferred", length(unqs.MockE), "sample sequences present in the Mock community.\n")
+
+mock.ref <- getSequences(file.path(path, "HMP_MOCK.v35.fasta"))
+match.ref <- sum(sapply(names(unqs.MockE), function(x) any(grepl(x, mock.ref))))
+cat("Of those,", sum(match.ref), "were exact matches to the expected reference sequences.\n")
+
+rownames(seqtab.nochim) <- sample.names
+unqs.MockE <- seqtab.nochim["MockE-run3",]
+unqs.MockE <- sort(unqs.MockE[unqs.MockE>0], decreasing=TRUE) # Drop ASVs absent in the Mock
+cat("DADA2 inferred", length(unqs.MockE), "sample sequences present in the Mock community.\n")
+
+mock.ref <- getSequences(file.path(path, "HMP_MOCK.v35.fasta"))
+match.ref <- sum(sapply(names(unqs.MockE), function(x) any(grepl(x, mock.ref))))
+cat("Of those,", sum(match.ref), "were exact matches to the expected reference sequences.\n")
+```
+
+The different Mock communities are sample names: "MockE", "MockE-run1", "MockE-run3"
+
+These results look good. The mock community has a mixture of 20 known bacterial strains, and DADA2 captured all 20 exact matches. For each sequencing run, though, more sample sequence variants were identified in the sample than there were actual sequence variants provided. 
+
+##Make outputtable ASV tables and taxonomy files
+Make sure the seqtab.nochim file with all the ASVs and the taxa are all in the same order. Save the sequences with an ASV# identifier.
+```{r}
+otus <- seqtab.nochim
+taxonomy <- taxa
+
+idx <- match(rownames(taxonomy), colnames(otus))
+#looks like they were all aligned, but doesn't hurt just to make it very safe.
+otus <- otus[,idx]
+
+#save a dataframe with a new ASV identifier and the sequence from the rownames for taxa
+#This is very important because you want to save the sequence for REPRODUCIBILITY and TRACTABILITY
+ASVseqs <- data.frame("asv" = paste0("ASV", seq(from = 1, to = ncol(seqtab.nochim), by = 1)), "sequence" = rownames(taxa))
+
+#rename otu and taxa dataframe so they are easier to interpret
+colnames(otus) <- ASVseqs$asv
+otus <- t(otus) #change OTU table so that the ASVs are rows and samples are columns
+rownames(taxonomy) <- ASVseqs$asv
+```
+
+
+##Recap:
+Write these tables so you have them for future data analysis
+```{r}
+setwd("~/Google Drive (cbecker@whoi.edu)/SCTLD_STT/") #write out these as .txt files
+write.table(otus, file = "ASV_STT2020.txt", sep = "\t", row.names = TRUE, col.names = TRUE)
+write.table(taxonomy, file = "taxonomy_STT2020_nospecies.txt", sep = "\t", row.names = TRUE, col.names = TRUE)
+write.table(ASVseqs, file = "ASVsequences_STT2020.txt", sep = "\t", row.names = TRUE, col.names = TRUE)
+```
+
+
+
