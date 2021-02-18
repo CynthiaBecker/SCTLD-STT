@@ -15,3 +15,4 @@ Stony Coral Tissue Loss Disease (SCTLD) is a devastating disease. Since 2014, it
 
 # Contents of Repository
 
+- [Code to Reproduce Figures](Code_to_Reproduce_Figures_in_Manuscript.md)
