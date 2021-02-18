@@ -1,18 +1,21 @@
 ---
-title: "SCTLD_STT - Code to Reproduce Figures in Manuscript"
+title: "Code to Reproduce R Figures"
+subtitle: "Stony Coral Tissue Loss Disease biomarker bacteria identified in corals and overlying waters using a rapid field-based sequencing approach"
 author: "Cynthia Becker"
 date: "2/4/2021"
-output: html_document
+output:
+  html_document:
+    keep_md: true
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+```{r setup, echo = FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.retina = 2, fig.path = "Figures/fig-")
 setwd("~/Documents/Apprill_lab/SCTLD_USVI_GitHub/SCTLD-STT")
 ```
 
-## All R Figures reproduced here
+### Install necessary packages
 
-```{r Install all necessary packages}
+```{r Install all necessary packages, message=FALSE, warning=FALSE, results='hide'}
 library(ggplot2); packageVersion("ggplot2")
 theme_set(theme_bw())
 library(dplyr); packageVersion("dplyr")
@@ -44,7 +47,7 @@ library(grid); packageVersion("grid")
 
 I would like to do filtering out of mitochondrial, chloroplast, and unclassified ASV sequences. Additionally, I will filter out the DNA extraction control contaminants likely introduce from DNA extraction kit reagents and then filter out the likely seawater-derived ASVs because the method of collecting tissue with syringes introduces significant amounts of seawater. To do this I will use the decontam packages and employ the combined function for the DNA extraction controls and the prevalence function for the Syringe Method Control samples compared to Coral Tissue syringe samples.
 
-```{r Final Filtering}
+```{r Final Filtering, message=FALSE, warning=FALSE, results = 'hide', fig.keep='all'}
 asv <- read.table("ASV_STT2020.txt", sep = "\t", header = TRUE, row.names = 1)
 taxa <- as.matrix(read.table("taxonomy_STT2020_nospecies.txt", sep = "\t", header = TRUE, row.names = 1))
 metadata <- read.table("metadata_STT2020.txt", sep = "\t", header = TRUE, row.names = 1)
@@ -119,7 +122,7 @@ ggplot(data=df.pa, aes(x=pa.neg, y=pa.pos, color=contaminant)) + geom_point() +
 # Check out some more contaminants using a similar graph as in the frequency method earlier, to make sure all IDd contaminatns "LOOK" like contaminants.
 set.seed(100)
 plot_frequency(ps, taxa_names(ps)[which(contamdf.com$contaminant)], conc="quant_reading") +
-    xlab("DNA Concentration (PicoGreen fluorescent intensity)")
+    xlab("DNA Concentration (Qubit 2.0 HS dsDNA Assay Stock Conc. ng/ul)")
 
 # Not all of these "contaminants" were present in DNA extraction controls. Only those in DNA extraction controls, where the frequency is greater than 0 are the following:
 contaminants <- c("ASV87", "ASV103", "ASV104", "ASV140", "ASV167", "ASV205", "ASV228", "ASV316", "ASV330", "ASV711", "ASV1946")
@@ -138,7 +141,7 @@ ps.noncontam #Now we have 11 fewer ASVs because we removed these
 
 #Make a table summarising the contaminants you removed. 
 DNAextraction.contam <- cbind(contamdf.com[contamdf.com$truecontam == TRUE,], tax_table(ps)[rownames(tax_table(ps)) %in% contaminants,])
-write.table(DNAextraction.contam, "DNAextraction_contaminants_decontam.txt", sep = "\t", col.names = NA) #Summary table - part of Appendix
+write.table(DNAextraction.contam, "Appendix_1_DNAextraction_contaminants_decontam.txt", sep = "\t", col.names = NA) #Summary table - part of Appendix
 
 # Get rid of the coral samples. I will try merging the phyloseq objects later. 
 ps.noncontam.sw <- ps.noncontam %>%
@@ -165,7 +168,7 @@ coraldata <- t(otu_table(coral_otu_relabund)) #subset and transform the otu rela
 coralcontamdata <- as.data.frame(coraldata[rownames(coraldata) %in% swcontam, ])
 coralcontamdata$meanabundance <- as.vector(apply(coralcontamdata, 1, mean))
 SWsyringe.contaminants <- cbind(contamdf.prev[contamdf.prev$contaminant == TRUE, ], tax_table(coral_otu_relabund)[rownames(tax_table(coral_otu_relabund)) %in% swcontam, ], coralcontamdata[rownames(coralcontamdata) %in% swcontam,])
-write.table(SWsyringe.contaminants, "SyringeMethod_contaminants_decontam.txt", sep = "\t", col.names = NA) #This is a summary of the Syringe method contaminants part of appendix
+write.table(SWsyringe.contaminants, "Appendix_2_SyringeMethod_contaminants_decontam.txt", sep = "\t", col.names = NA) #This is a summary of the Syringe method contaminants part of appendix
 
 # Take a look at how Decontam marked out the different contaminants
 # Make phyloseq object of presence-absence in negative controls and true samples
@@ -196,21 +199,22 @@ write.table(as(tax_table(ps.noncontam.merge.filt), "matrix"),"taxonomy_STT2020_n
 write.table(as(sample_data(ps.noncontam.merge.filt), "matrix"),"metadata_STT2020_filt_decontam.txt",sep="\t",col.names=NA)
 ```
 
-## Figure 1 - Sampling locations in St. Thomas, U.S. Virgin Islands
+## Figure 1
+### Sampling locations at Existing and Outbreak locations in St. Thomas, U.S. Virgin Islands
 
 This code generates a larger map of St. Thomas, USVI and a map of the greater Caribbean with a dot where the USVI are located. After saving these two images, they can be combined together in another application, such as Adobe Illustrator to make the figure found in the Manuscript. 
-```{r Figure 1}
+```{r Figure 1, message=FALSE, results = 'hide', fig.keep='all'}
 metadata <- read.table("metadata_STT2020_filt_decontam.txt", sep = "\t", header = TRUE, row.names = 1) #load metadata
 
 sites <- data.frame("site" = metadata$Site, "lat" = metadata$lat, "lon" = metadata$lon)
 sites <- sites[16:17,] #just select the two sites of interest
 
 # Use shapefile obtained from: https://earthworks.stanford.edu/catalog/stanford-vt021tk4894 
-# Shapefile now in Repo
-shapefile <- readOGR("~/Documents/Apprill_lab/SCTLD_USVI_GitHub/SCTLD-STT/Shapefile_for_Map", "vt021tk4894")
+# Shapefile is too large for GitHub. Download and put in your own folder, and adjust the path to that Shapefile folder.
+shapefile <- readOGR("~/Documents/Apprill_lab/USVI_Projects/TideExpt/USVItideGitHub/Shapefile_for_Map/", "vt021tk4894")
 shape_df <- fortify(shapefile) # Create the shapefile you will use in ggplot2
 
-usa <- st_read("~/Documents/Apprill_lab/SCTLD_USVI_GitHub/SCTLD-STT/Shapefile_for_Map", "vt021tk4894")
+usa <- st_read("~/Documents/Apprill_lab/USVI_Projects/TideExpt/USVItideGitHub/Shapefile_for_Map/", "vt021tk4894")
 
 ggplot(data = usa) +
   geom_sf(fill = "black", color = "black") +
@@ -233,18 +237,18 @@ ggplot(data = world) +
   geom_sf(fill = "black", color = "black") +
   coord_sf(xlim = c(-90.3, -59.5), ylim = c(10, 30.7), expand = FALSE) +
   labs(x = "Longitude", y = "Latitude") +
-  geom_point(aes(y = 18.342194, x = -64.911193), pch = 21, fill ="red", size = 7) +
+  geom_point(aes(y = 18.342194, x = -64.911193), pch = 21, fill ="blue", size = 7) +
   theme(panel.grid.major = element_line(color = gray(.7), linetype = "dashed", size = 0.5), panel.background = element_rect(fill = "aliceblue"))
 
 #ggsave("Caribbean_map2.pdf")
 #ggsave("Caribbean_map.png", width = 7.5, height = 5, dpi = "retina")
 ```
 
-## Figure 3
+## Figure 3. Coral tissue microbiomes differed according to health condition and near-coral seawater microbiomes differed according to site.
 
 ### Figure 3a. Coral Tissue microbial beta diversity
 
-```{r Manuscript analysis PCoA Coral}
+```{r Manuscript analysis PCoA Coral, message=FALSE, results = 'hide', fig.keep='last'}
 #Upload data
 #import the ASV data that has been filtered for contaminants and low abundance reads. 
 ASV <- read.table("ASV_STT2020_filt_decontam.txt", sep = "\t", row.names = 1, header = TRUE)
@@ -318,7 +322,7 @@ print(perm)
 ```
 
 ### Figure 3b. Dispersion of microbial beta diversity in Coral Tissue
-```{r Dispersion Analysis}
+```{r Dispersion Analysis, message=FALSE, results = 'hide', fig.keep='all'}
 #import the ASV data that has been filtered for contaminants and low abundance reads. 
 ASV <- read.table("ASV_STT2020_filt_decontam.txt", sep = "\t", row.names = 1, header = TRUE)
 taxa <- as.matrix(read.table("taxonomy_STT2020_nospecies_filt_decontam.txt", sep = "\t", row.names = 1, header = TRUE))
@@ -358,13 +362,13 @@ kruskal.test(distance ~ healthstate, data = dis2.meta)
 # independent 2-group Mann-Whitney U Test
 wilcox.test(distance ~ healthstate, data = dis2.meta)
 
-dis2.meta$conditionshort <-factor(dis.meta$conditionshort, levels=c("HH","HD","DD"))
-dis2.meta$healthstate <-factor(dis.meta$healthstate, levels=c("H","D"))
+dis2.meta$conditionshort <-factor(dis2.meta$conditionshort, levels=c("HH","HD","DD"))
+dis2.meta$healthstate <-factor(dis2.meta$healthstate, levels=c("H","D"))
 
 ggplot(dis2.meta, aes(x = healthstate, y = distance))+
   geom_boxplot(lwd=1) +
   stat_boxplot(geom = "errorbar", width = 0.2, lwd = 1) + 
-  geom_jitter(position=position_jitter(width=.1, height=0),aes(fill = conditionshort, colour = Site, shape = species),size=4, stroke = 1.5)+
+  geom_jitter(position=position_jitter(width=.1, height=0), aes(fill = conditionshort, colour = Site, shape = species), size=4, stroke = 1.5)+
   scale_color_manual(labels = c("Existing", "Outbreak"), values = c("gray55", "black")) +
   scale_fill_manual(values = c("#7570B3", "#1B9E77", "#D95F02")) +
   scale_shape_manual(labels = c(expression(italic("Colpophyllia natans")), expression(italic("Montastrea cavernosa")), expression(italic("Meandrina meandrites")), expression(italic("Orbicella franksi"))), values=c(21, 22, 24, 25)) +
@@ -378,7 +382,7 @@ ggplot(dis2.meta, aes(x = healthstate, y = distance))+
 
 ### Figure 3c. Near-coral Seawater microbial beta diversity
 
-```{r Manuscript analysis PCoA Seawater}
+```{r Manuscript analysis PCoA Seawater, message=FALSE, results = 'hide', fig.keep='last'}
 #Upload data
 #import the ASV data that has been filtered for contaminants and low abundance reads. 
 ASV <- read.table("ASV_STT2020_filt_decontam.txt", sep = "\t", row.names = 1, header = TRUE)
@@ -441,10 +445,12 @@ perm <- adonis(ASV.sw.log.b ~ Site*species, metadata_sw) #Individual effects of 
 print(perm)
 ```
 
-## Figure 4. Disease-enriched ASVs identified by differential abundance analysis as significantly associated with SCTLD in at least one coral. 
-Note. For code on differential abundance analysis and results of every ASV found to differ between healthy and diseased coral tissues, please go to Supplementary Figure 5-8 code. 
+## Figure 4.
+### Relative abundances of 25 SCTLD biomarker ASVs significantly differentially enriched (FDR corrected p-value < 0.05) in diseased tissue of at least one coral species. 
 
-```{r Bubble plot of disease-associated ASVs in coral tissue samples}
+**Note.** For code on differential abundance analysis and results of every ASV found to differ between healthy and diseased coral tissues, please go to **Supplementary Figure 5-8** code. 
+
+```{r Bubble plot of disease-associated ASVs in coral tissue samples, message=FALSE, results = 'hide', fig.keep='all', fig.height=7, fig.width=10}
 otu <- read.table("ASV_STT2020_filt_decontam.txt",sep="\t",header=TRUE, row.names=1)
 taxon <- as.matrix(read.table("taxonomy_STT2020_nospecies_filt_decontam.txt", sep="\t", header=TRUE, row.names=1))
 samples <- read.table("metadata_STT2020_filt_decontam.txt",sep="\t",header=T,row.names=1)
@@ -526,24 +532,15 @@ ggplot(long.withtaxa.nonzero, aes(x = sample, y = ASV, fill = Genus)) +
   scale_fill_manual(values = x) +
   scale_y_discrete(limits = rev(levels(long.withtaxa$ASV))) +
   theme(axis.text.x = element_blank(), axis.ticks.x = element_blank()) +
-  labs(title = "Relative Abundance of SCTLD lesion-associated ASVs across all corals", size = "Relative Abundance", color = "Genera") +
+  labs(size = "Relative Abundance", color = "Genera") +
   guides(fill = guide_legend(override.aes = list(size = 4)))
 #ggsave("Rfigures/Bubbleplot_sctld_asvs_in_CoralTissue_2.pdf", width = 10, height = 7)
-
-ggplot(long.withtaxa.nonzero, aes(x = sample, y = ASV, fill = Genus)) +
-  geom_point(aes(size = proportion*100), alpha = 0.9, shape = 21) +
-  scale_size_continuous(limits = c(0, 70), range = c(0,12), breaks = c(0.01, 5, 10, 20, 40)) +
-  facet_grid(. ~ species + conditionshort, scales="free", space="free") +
-  scale_fill_manual(values = x) +
-  scale_y_discrete(limits = rev(levels(long.withtaxa$ASV))) +
-  theme(axis.text.x=element_text(angle = 90)) +
-  labs(title = "Relative Abundance of SCTLD lesion-associated ASVs across all corals", size = "Relative Abundance", color = "Genera") +
-  guides(fill = guide_legend(override.aes = list(size = 4)))
 ```
 
 ## Figure 5
+### SCTLD biomarker ASVs identified in coral tissue found in near-coral seawater. 
 
-```{r Bubble plot of potential pathogens in the coral seawater}
+```{r Bubble plot of potential pathogens in the coral seawater, message=FALSE, results = 'hide', fig.keep='all', fig.height=7, fig.width=9}
 sctld_asv <- c("ASV13", "ASV20", "ASV21", "ASV25", "ASV26", "ASV34", "ASV36", "ASV39", "ASV44", "ASV48", "ASV52", "ASV54", "ASV60", "ASV67", "ASV96", "ASV101", "ASV111", "ASV126", "ASV130", "ASV135", "ASV185", "ASV226", "ASV263", "ASV275", "ASV1012")
 
 otu <- read.table("ASV_STT2020_filt_decontam.txt",sep="\t",header=TRUE, row.names=1)
@@ -626,21 +623,10 @@ ggplot(long.withtaxasw.nonzero, aes(x = sample, y = ASV, fill = Genus)) +
   scale_fill_manual(values = x) +
   scale_y_discrete(limits = rev(levels(long.withtaxa.sw$ASV))) +
   theme(axis.text.x = element_blank(), axis.ticks.x = element_blank()) +
-  labs(title = "Relative Abundance of SCTLD lesion-associated ASVs in SW surrounding coral", size = "Relative Abundance", color = "Genera") +
+  labs(size = "Relative Abundance", color = "Genera") +
   guides(fill = guide_legend(override.aes = list(size = 4)))
 
 #ggsave("Rfigures/Bubbleplot_sctld_asvs_in_SW_2.pdf", width = 9, height = 7)
-
-ggplot(long.withtaxasw.nonzero, aes(x = sample, y = ASV, fill = Genus)) +
-  geom_point(aes(size = proportion*100), alpha = 0.9, shape = 21) +
-  scale_size_continuous(limits = c(0, 2), range = c(0,10), breaks = c(0.01, 0.25, 0.50, 0.75)) +
-  facet_grid(. ~ species + conditionshort, scales="free", space="free") +
-  scale_fill_manual(values = x) +
-  scale_y_discrete(limits = rev(levels(long.withtaxa.sw$ASV))) +
-  theme(axis.text.x=element_text(angle = 90)) +
-  labs(title = "Relative Abundance of SCTLD lesion-associated ASVs in SW surrounding coral", size = "Relative Abundance", color = "Genera") +
-  guides(fill = guide_legend(override.aes = list(size = 4)))
-
 
 ## Further significance testing on disease-associated ASVs in seawater
 # Subset only the ASVs of interest and do the multiple testing part of corncob
@@ -704,8 +690,8 @@ sw.da$significant_models
 
 
 ## Supplementary Figure 1
-
-```{r Manuscript Analysis PCoA All}
+### Principal coordinates analysis (PCoA) of Bray-Curtis dissimilarity between all coral and seawater samples.
+```{r Manuscript Analysis PCoA All, message=FALSE, results = 'hide', fig.keep='last'}
 #Upload data
 #import the ASV data that has been filtered for contaminants and low abundance reads. 
 ASV <- read.table("ASV_STT2020_filt_decontam.txt", sep = "\t", row.names = 1, header = TRUE)
@@ -760,7 +746,8 @@ print(perm)
 ```
 
 ## Supplementary Figure 2
-```{r PCoA of only healthy corals}
+### Principal coordinates analysis (PCoA) of Bray-Curtis dissimilarity within healthy coral tissue samples only.
+```{r PCoA of only healthy corals, message=FALSE, results = 'hide', fig.keep='last'}
 ##### Check out only healthy corals to see why they are so closely bunched together in the PCoA
 #import the ASV data that has been filtered for contaminants and low abundance reads. 
 ASV <- read.table("ASV_STT2020_filt_decontam.txt", sep = "\t", row.names = 1, header = TRUE)
@@ -813,7 +800,8 @@ ggplot(pcoa.coral2, aes(x = pcoa.coral2[,1]*(-1), y = pcoa.coral2[,2], fill = co
 ```
 
 ## Supplementary Figure 3
-```{r}
+### Boxplots denoting range in Bray-Curtis Dissimilarity values within healthy (HH = purple and HD = green) and diseased (DD = orange) coral tissue microbiomes.
+```{r, message=FALSE, warning = FALSE, results = 'hide', fig.keep='all'}
 ## C. Boxplot of Bray-Curtis Dissimilarity
 
 #I will produce a boxplot of the pairwise dissimilarity within each group. I will then conduct a Kruskal-Wallis test to test for significant differences between the dissimilarities in each group. About the Kruskal-Wallis test: Kruskal-Wallis test by rank is a non-parametric alternative to one-way ANOVA test, which extends the two-samples Wilcoxon test in the situation where there are more than two groups (I have several groups since I am testing for site differences). It’s recommended when the assumptions of one-way ANOVA test are not met.
@@ -875,7 +863,7 @@ ggplot(diss, aes(x = health, y = bc)) +
   geom_point(aes(fill = condition), shape = 21, position = position_jitter(width=.2, height=0), size = 4) +
   geom_boxplot(size = 1, lwd = 1, alpha = 0.5) +
   stat_boxplot(geom = "errorbar", width = 0.2, lwd = 1) +
-  theme(axis.text.x = element_text(angle = 90, hjust = 1), legend.position = "none") +
+  theme(axis.text.x = element_text(hjust = 1), legend.position = "none") +
   labs(x = "Health Condition", y = "Bray Curtis Dissimilarity", title = "Pairwise dissimilarity within each condition") +
   scale_fill_manual(values = c("#7570B3", "#1B9E77", "#D95F02"))
 #ggsave("Rfigures/BCvalues_health_Binary.pdf", width = 6, height = 7) 
@@ -892,8 +880,8 @@ pairwise.wilcox.test(diss$bc, diss$condition, p.adjust.method = "BH") #supplemen
 ```
 
 ## Supplementary Figure 4
-
-```{r}
+### Stacked bar chart of microbial relative abundances within coral tissue in (a) _M. cavernosa_, (b) _M. meandrites_, (c) _C. natans_, and (d) _O. franksi_.
+```{r, message=FALSE, results = 'hide', fig.keep='all', fig.width=10, fig.height=6}
 #import the ASV data that has been filtered for contaminants and low abundance reads. 
 otu <- read.table("ASV_STT2020_filt_decontam.txt",sep="\t",header=TRUE, row.names=1)
 taxon <- as.matrix(read.table("taxonomy_STT2020_nospecies_filt_decontam.txt", sep="\t", header=TRUE, row.names=1))
@@ -976,16 +964,23 @@ p4 <- plot_bar(subset_samples(ps_ra_ofra, sampletype == "tiss"), fill="Class") +
 
 # adjust width and height until it looks right for double columns
 #pdf("Rfigures/Barcharts_Class_tissue.pdf", width = 18, height = 10)
-plot_grid(p1,p2,p3,p4, labels = c("A","B","C","D"), ncol = 2, nrow = 3)
+plot_grid(p1,p2,p3,p4, labels = c("A","B","C","D"), ncol = 2, nrow = 2)
 #dev.off()
+
+p <- plot_bar(subset_samples(ps_ra_mcav, sampletype == "tiss"), fill="Class") +
+  geom_bar(aes(fill=Class), stat="identity",position="stack") +
+  scale_fill_manual(values=palette) +
+  ggtitle("Montastraea cavernosa") +
+  theme(legend.position = "bottom")
 
 legend <- cowplot::get_legend(p) #show the legend because it isn't printed in the gridded plot
 grid.newpage()
 grid.draw(legend)
 ```
 
-## Supplementary Figures 5 - 8. Differential abundance analyses between healthy and diseased coral tissues and graphs showing differential abundant ASVs
-```{r Corncob analysis and graphing}
+## Supplementary Figures 5 - 8. Differential abundance analyses between healthy and diseased coral tissue/mucus slurry samples.
+
+```{r Corncob analysis and graphing, message=FALSE, results = 'hide'}
 otu <- read.table("ASV_STT2020_filt_decontam.txt",sep="\t",header=TRUE, row.names=1)
 taxon <- as.matrix(read.table("taxonomy_STT2020_nospecies_filt_decontam.txt", sep="\t", header=TRUE, row.names=1))
 samples <- read.table("metadata_STT2020_filt_decontam.txt",sep="\t",header=T,row.names=1)
@@ -1076,68 +1071,16 @@ mcav.forgraph <- sigtaxto_df(mcav.da, ps2_mcav) #make a df of the corncob output
 mmea.forgraph <- sigtaxto_df(mmea.da, ps2_mmea) #make a df of the corncob output and the taxonomy
 ofra.forgraph <- sigtaxto_df(ofra.da, ps2_ofra) #make a df of the corncob output and the taxonomy
 cnat.forgraph <- sigtaxto_df(cnat.da, ps2_cnat) #make a df of the corncob output and the taxonomy
+```
 
-palette <- distinctColorPalette(40)
-#create the plot in ggplot for MCAV.
-#Change the levels of the $asvtaxa row so that it reorders the plot by decreasing coefficients
-mcav.forgraph <- mcav.forgraph[order(-mcav.forgraph$Estimate), ]
-mcav.forgraph$asvtaxa <- factor(mcav.forgraph$asvtaxa, levels = as.vector(mcav.forgraph$asvtaxa))
-
-mcav.daplot <- ggplot(mcav.forgraph, aes(x = asvtaxa, y = Estimate, fill = Family)) +
-  geom_errorbar(aes(ymin = Estimate-StdError, ymax = Estimate+StdError), color = "black", width = .3, position=position_dodge(.9)) +
-  geom_point(size = 4, pch = 21) + 
-  scale_x_discrete(limits = rev(levels(mcav.forgraph$asvtaxa))) +
-  scale_fill_manual(values = palette) +
-  geom_line() +
-  coord_flip() +
-  theme_bw() +
-  labs(x = "Taxa", y = "Coefficient", title = expression(italic("Montastrea cavernosa"))) +
-  geom_hline(yintercept = 0, linetype = "dashed", color = "darkgray")
-mcav.daplot #view the plot
-#ggsave("MCAV_da_final_stt2020.pdf", width = 10, height = 8)
-
-#create the plot in ggplot for MMEA 
-#Change the levels of the $asvtaxa row so that it reorders the plot by decreasing coefficients
-mmea.forgraph <- mmea.forgraph[order(-mmea.forgraph$Estimate), ]
-mmea.forgraph$asvtaxa <- factor(mmea.forgraph$asvtaxa, levels = as.vector(mmea.forgraph$asvtaxa))
-
-mmea.daplot <- ggplot(mmea.forgraph, aes(x = asvtaxa, y = Estimate, fill = Family)) +
-  geom_errorbar(aes(ymin = Estimate-StdError, ymax = Estimate+StdError), color = "black", width = .3, position=position_dodge(.9)) +
-  geom_point(size = 4, pch = 21) + 
-  scale_x_discrete(limits = rev(levels(mmea.forgraph$asvtaxa))) +
-  scale_fill_manual(values = palette) +
-  geom_line() +
-  coord_flip() +
-  theme_bw() +
-  labs(x = "Taxa", y = "Coefficient", title = expression(italic("Meandrina meandrites"))) +
-  geom_hline(yintercept = 0, linetype = "dashed", color = "darkgray")
-mmea.daplot #view the plot
-#ggsave("MMEA_da_final_stt2020.pdf", width = 8, height = 4)
-
-#create the plot in ggplot for MMEA 
-#Change the levels of the $asvtaxa row so that it reorders the plot by decreasing coefficients
-ofra.forgraph <- ofra.forgraph[order(-ofra.forgraph$Estimate), ]
-ofra.forgraph$asvtaxa <- factor(ofra.forgraph$asvtaxa, levels = as.vector(ofra.forgraph$asvtaxa))
-
-ofra.daplot <- ggplot(ofra.forgraph, aes(x = asvtaxa, y = Estimate, fill = Family)) +
-  geom_errorbar(aes(ymin = Estimate-StdError, ymax = Estimate+StdError), color = "black", width = .3, position=position_dodge(.9)) +
-  geom_point(size = 4, pch = 21) + 
-  scale_x_discrete(limits = rev(levels(ofra.forgraph$asvtaxa))) +
-  scale_fill_manual(values = palette) +
-  geom_line() +
-  coord_flip() +
-  theme_bw() +
-  labs(x = "Taxa", y = "Coefficient", title = expression(italic("Orbicella franksii"))) +
-  geom_hline(yintercept = 0, linetype = "dashed", color = "darkgray")
-ofra.daplot #view the plot
-#ggsave("OFRA_da_final_stt2020.pdf", width = 8, height = 7)
-
-#create the plot in ggplot for MMEA 
+### Figure S5. Significantly differentially abundant ASVs between diseased and healthy tissue in _Colpophyllia natans_. 
+```{r Figure S5, message=FALSE, results = 'hide', fig.keep='all'}
+# Create the plot in ggplot for CNAT
 #Change the levels of the $asvtaxa row so that it reorders the plot by decreasing coefficients
 cnat.forgraph <- cnat.forgraph[order(-cnat.forgraph$Estimate), ]
 cnat.forgraph$asvtaxa <- factor(cnat.forgraph$asvtaxa, levels = as.vector(cnat.forgraph$asvtaxa))
 
-cnat.daplot <- ggplot(cnat.forgraph, aes(x = asvtaxa, y = Estimate, fill = Family)) +
+ggplot(cnat.forgraph, aes(x = asvtaxa, y = Estimate, fill = Family)) +
   geom_errorbar(aes(ymin = Estimate-StdError, ymax = Estimate+StdError), color = "black", width = .3, position=position_dodge(.9)) +
   geom_point(size = 4, pch = 21) + 
   scale_x_discrete(limits = rev(levels(cnat.forgraph$asvtaxa))) +
@@ -1147,7 +1090,69 @@ cnat.daplot <- ggplot(cnat.forgraph, aes(x = asvtaxa, y = Estimate, fill = Famil
   theme_bw() +
   labs(x = "Taxa", y = "Coefficient", title = expression(italic("Colpophyllia natans"))) +
   geom_hline(yintercept = 0, linetype = "dashed", color = "darkgray")
-cnat.daplot #view the plot
 #ggsave("CNAT_da_final_stt2020.pdf", width = 8, height = 7)
 ```
+
+### Figure S6. Significantly differentially abundant ASVs between diseased and healthy tissue in _Montastraea cavernosa_. 
+```{r Figure S6, message=FALSE, results = 'hide', fig.keep='all', fig.width=10, fig.height=8}
+palette <- distinctColorPalette(40)
+#create the plot in ggplot for MCAV.
+#Change the levels of the $asvtaxa row so that it reorders the plot by decreasing coefficients
+mcav.forgraph <- mcav.forgraph[order(-mcav.forgraph$Estimate), ]
+mcav.forgraph$asvtaxa <- factor(mcav.forgraph$asvtaxa, levels = as.vector(mcav.forgraph$asvtaxa))
+
+ggplot(mcav.forgraph, aes(x = asvtaxa, y = Estimate, fill = Family)) +
+  geom_errorbar(aes(ymin = Estimate-StdError, ymax = Estimate+StdError), color = "black", width = .3, position=position_dodge(.9)) +
+  geom_point(size = 4, pch = 21) + 
+  scale_x_discrete(limits = rev(levels(mcav.forgraph$asvtaxa))) +
+  scale_fill_manual(values = palette) +
+  geom_line() +
+  coord_flip() +
+  theme_bw() +
+  labs(x = "Taxa", y = "Coefficient", title = expression(italic("Montastrea cavernosa"))) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "darkgray")
+#ggsave("MCAV_da_final_stt2020.pdf", width = 10, height = 8)
+```
+
+### Figure S7. Significantly differentially abundant ASVs between diseased and healthy tissue in _Meandrina meandrites_.
+```{r Figure S7, message=FALSE, results = 'hide', fig.keep='all',fig.width=8, fig.height=4}
+#create the plot in ggplot for MMEA 
+#Change the levels of the $asvtaxa row so that it reorders the plot by decreasing coefficients
+mmea.forgraph <- mmea.forgraph[order(-mmea.forgraph$Estimate), ]
+mmea.forgraph$asvtaxa <- factor(mmea.forgraph$asvtaxa, levels = as.vector(mmea.forgraph$asvtaxa))
+
+ggplot(mmea.forgraph, aes(x = asvtaxa, y = Estimate, fill = Family)) +
+  geom_errorbar(aes(ymin = Estimate-StdError, ymax = Estimate+StdError), color = "black", width = .3, position=position_dodge(.9)) +
+  geom_point(size = 4, pch = 21) + 
+  scale_x_discrete(limits = rev(levels(mmea.forgraph$asvtaxa))) +
+  scale_fill_manual(values = palette) +
+  geom_line() +
+  coord_flip() +
+  theme_bw() +
+  labs(x = "Taxa", y = "Coefficient", title = expression(italic("Meandrina meandrites"))) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "darkgray")
+#ggsave("MMEA_da_final_stt2020.pdf", width = 8, height = 4)
+```
+
+### Figure S8. Significantly differentially abundant ASVs between diseased and healthy tissue in _Orbicella franksi_.
+```{r Figure S8, message=FALSE, results = 'hide', fig.keep='all', fig.width=8, fig.height=7}
+#create the plot in ggplot for OFRA 
+#Change the levels of the $asvtaxa row so that it reorders the plot by decreasing coefficients
+ofra.forgraph <- ofra.forgraph[order(-ofra.forgraph$Estimate), ]
+ofra.forgraph$asvtaxa <- factor(ofra.forgraph$asvtaxa, levels = as.vector(ofra.forgraph$asvtaxa))
+
+ggplot(ofra.forgraph, aes(x = asvtaxa, y = Estimate, fill = Family)) +
+  geom_errorbar(aes(ymin = Estimate-StdError, ymax = Estimate+StdError), color = "black", width = .3, position=position_dodge(.9)) +
+  geom_point(size = 4, pch = 21) + 
+  scale_x_discrete(limits = rev(levels(ofra.forgraph$asvtaxa))) +
+  scale_fill_manual(values = palette) +
+  geom_line() +
+  coord_flip() +
+  theme_bw() +
+  labs(x = "Taxa", y = "Coefficient", title = expression(italic("Orbicella franksii"))) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "darkgray")
+#ggsave("OFRA_da_final_stt2020.pdf", width = 8, height = 7)
+```
+
+
 
