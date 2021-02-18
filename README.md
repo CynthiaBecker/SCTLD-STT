@@ -1,6 +1,7 @@
 # Stony Coral Tissue Loss Disease biomarker bacteria identified in corals and overlying waters using a rapid field-based sequencing approach
 
-Cynthia C. Becker<sup>1,2</sup>, Marilyn Brandt<sup>3</sup>, Carolyn A. Miller<sup>1</sup>, Amy Apprill<sup>1</sup>
+## Cynthia C. Becker<sup>1,2</sup>, Marilyn Brandt<sup>3</sup>, Carolyn A. Miller<sup>1</sup>, Amy Apprill<sup>1</sup>
+
 <sup>1</sup>Woods Hole Oceanographic Institution, Woods Hole, MA, 02543, USA
 <sup>2</sup>MIT-WHOI Joint Program in Oceanography/Applied Ocean Science & Engineering, Cambridge and Woods Hole, MA, USA
 <sup>3</sup>University of the Virgin Islands, St. Thomas, United States Virgin Islands, 00802, USA
