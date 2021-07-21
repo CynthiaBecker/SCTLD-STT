@@ -141,7 +141,7 @@ contamdf.com$truecontam <- contamdf.com$asv %in% contaminants
 #Check that this worked...should be 11 "TRUE"
 table(contamdf.com$truecontam)
 
-# Overall, I think I like the combined method best. It seems to combine the best of both worlds. Since I have data on both dna concentration AND which samples are DNA extraction controls, it seems like amore powerful method. 
+# Overall, I think I like the combined method best. It seems to combine the best of both worlds. Since I have data on both dna concentration AND which samples are DNA extraction controls, it seems like amore powerful method. In addition, by visualizing the results, I can identify for each potential contaminant if it "looks" like a contaminant, which is defined as being present at a higher amount in the control compared to true samples. 
 # Remove contaminants from phyloseq object
 ps.noncontam <- prune_taxa(!contamdf.com$truecontam, ps)
 ps.noncontam #Now we have 11 fewer ASVs because we removed these
@@ -163,9 +163,14 @@ ps.noncontam.coral <- ps.noncontam %>%
 coral_otu_relabund <- transform_sample_counts(ps.noncontam.coral, function(OTU) OTU/sum(OTU) ) #Get the relative abundance data for the coral samples
 
 #column with TRUE == seawater control and FALSE == tissue samples is the 
-contamdf.prev <- isContaminant(ps.noncontam.coral, method="prevalence", neg="is.swctrl")
+contamdf.prev <- isContaminant(ps.noncontam.coral, method="prevalence", neg="is.swctrl", threshold = 0.1)
 head(contamdf.prev)
+hist(contamdf.prev$p) #Take a look at the number of ASVs with each decontam Score. This will inform where to put the threshold, or "cutoff" for the prevalence method. Keep in mind you are ultimately interested in identifying SCTLD bacteria that may be in the seawater, so a conservative approach may be more appropriate here.
+```
 
+<img src="Figures/fig-Final Filtering-3.png" width="672" />
+
+```r
 table(contamdf.prev$contaminant) #looks like lots of contaminants...184!
 head(which(contamdf.prev$contaminant)) #Looks like higher abundance ASVs compared to the frequency method
 swcontam <- rownames(contamdf.prev[contamdf.prev$contaminant == TRUE, ]) #make a list of the ASV names of the contaminants
@@ -189,7 +194,7 @@ ggplot(data=df.pa, aes(x=pa.neg, y=pa.pos, color=contaminant)) + geom_point() +
   xlab("Prevalence (Seawater Syringe Controls)") + ylab("Prevalence (True Tissue Samples)")
 ```
 
-<img src="Figures/fig-Final Filtering-3.png" width="672" />
+<img src="Figures/fig-Final Filtering-4.png" width="672" />
 
 ```r
 # Remove the contaminants from the coral samples. 
@@ -232,10 +237,10 @@ ggplot(data = usa) +
   geom_sf(fill = "black", color = "black") +
   geom_point(mapping = aes(x = lon, y = lat), pch = 21, data = sites, size = 4, fill = "orangered") +
   labs(title = "Sampling locations in St. Thomas, U.S. Virgin Islands", x = "Longitude", y = "Latitude") +
-  coord_sf(xlim = c(-65.066394, -64.827391), ylim = c(18.271188, 18.388478), expand = FALSE) +
+  coord_sf(xlim = c(-65.066394, -64.827391), ylim = c(18.271188, 18.388478), expand = FALSE) + 
   annotation_scale(location = "tr", width_hint = 0.2) +
-  annotate(geom = "text", x = -65, y = 18.337, label = "Existing", color = "black", size = 5) +
-  annotate(geom = "text", x = -64.9, y = 18.285, label = "Outbreak", color = "black", size = 5) +
+  annotate(geom = "text", x = -65, y = 18.333, label = "Black Point", color = "black", size = 5) +
+  annotate(geom = "text", x = -64.898, y = 18.286, label = "Buck Island", color = "black", size = 5) +
   theme(panel.grid.major = element_line(color = gray(.7), linetype = "dashed", size = 0.5), panel.background = element_rect(fill = "aliceblue")) +
   theme(axis.text = element_text(size = 12))
 ```
@@ -243,8 +248,8 @@ ggplot(data = usa) +
 <img src="Figures/fig-Figure 1-1.png" width="672" />
 
 ```r
-#ggsave("St.Thomas_sampling_map.pdf")
-#ggsave("St.Thomas_sampling_map.png", width = 7.5, height = 5, dpi = "retina")
+#ggsave("~/Google Drive (cbecker@whoi.edu)/SCTLD_STT/Rfigures/St.Thomas_sampling_map.pdf")
+#ggsave("~/Google Drive (cbecker@whoi.edu)/SCTLD_STT/Rfigures/St.Thomas_sampling_map.png", width = 7.5, height = 5, dpi = "retina")
 
 world <- ne_countries(scale = "medium", returnclass = "sf")
 class(world)
@@ -260,8 +265,8 @@ ggplot(data = world) +
 <img src="Figures/fig-Figure 1-2.png" width="672" />
 
 ```r
-#ggsave("Caribbean_map2.pdf")
-#ggsave("Caribbean_map.png", width = 7.5, height = 5, dpi = "retina")
+#ggsave("~/Google Drive (cbecker@whoi.edu)/SCTLD_STT/Rfigures/Caribbean_map2.pdf")
+#ggsave("~/Google Drive (cbecker@whoi.edu)/SCTLD_STT/Rfigures/Caribbean_map.png", width = 7.5, height = 5, dpi = "retina")
 ```
 
 ## Figure 3. Coral tissue microbiomes differed according to health condition and near-coral seawater microbiomes differed according to site.
@@ -312,15 +317,16 @@ Variance2 <- 100 * signif(Variance[2], 2) #extract percent explained by variance
   
 #GGPLOT2 plotting
 pcoa.coral2 <- cbind(pcoa.coral$points, meta_coral) # combine the Pcoa values with metadata for easier plotting
+pcoa.coral2$species <- factor(pcoa.coral2$species, levels = c("CNAT", "MCAV", "OFRA", "MMEA")) #adjust the levels so they plot correctly!
 
 #principal coordinates 1 and 2
 ggplot(pcoa.coral2, aes(x = pcoa.coral2[,1]*(-1), y = pcoa.coral2[,2], fill = conditionshort, colour = Site, shape = species)) +
   geom_point(size = 4, stroke = 2) +
   coord_fixed() + #aspect ratio of 1
   labs(x = paste0("PCoA1, ", Variance1, "%"), y = paste0("PCoA2, ",Variance2, "%"), title = "Coral tissue PCoA of Bray-Curtis Dissimilarity", fill = "Condition", shape = "Coral Species", color = "Reef") +
-  scale_color_manual(labels = c("Existing", "Outbreak"), values = c("gray55", "black")) +
+  scale_color_manual(labels = c("Black Point", "Buck Island"), values = c("gray55", "black")) +
   scale_fill_manual(values = c("#D95F02", "#1B9E77", "#7570B3")) +
-  scale_shape_manual(labels = c(expression(italic("Colpophyllia natans")), expression(italic("Montastraea cavernosa")), expression(italic("Meandrina meandrites")), expression(italic("Orbicella franksi"))), values=c(21, 22, 24, 25)) +
+  scale_shape_manual(labels = c(expression(italic("Colpophyllia natans")), expression(italic("Montastraea cavernosa")), expression(italic("Orbicella franksi")), expression(italic("Meandrina meandrites"))), values=c(21, 22, 24, 25)) +
   guides(fill = guide_legend(override.aes=list(shape=21))) +
   theme(legend.text.align = 0)
 ```
@@ -328,7 +334,7 @@ ggplot(pcoa.coral2, aes(x = pcoa.coral2[,1]*(-1), y = pcoa.coral2[,2], fill = co
 <img src="Figures/fig-Manuscript analysis PCoA Coral-1.png" width="672" />
 
 ```r
-#ggsave("Rfigures/PCoA_bray_log_STT2020_Coral.pdf", width = 6, height = 7) 
+#ggsave("~/Google Drive (cbecker@whoi.edu)/SCTLD_STT/Rfigures/PCoA_bray_log_STT2020_Coral.pdf", width = 6, height = 7) 
 
 #Permanova to see the effect of Site, healthstate, condition, and coral species on structuring the microbial communities in coral tissue/mucus slurry communities
 perm<-adonis(ASV.coral.log.b ~ Site, meta_coral) #So we can clearly see that There is a slightly significant (p = 0.03) effect of site on structuring coral microbiomes
@@ -391,14 +397,16 @@ wilcox.test(distance ~ healthstate, data = dis2.meta)
 
 dis2.meta$conditionshort <-factor(dis2.meta$conditionshort, levels=c("HH","HD","DD"))
 dis2.meta$healthstate <-factor(dis2.meta$healthstate, levels=c("H","D"))
+dis2.meta$species <- factor(dis2.meta$species, levels = c("CNAT", "MCAV", "OFRA", "MMEA")) #adjust the levels so they plot correctly!
+
 
 ggplot(dis2.meta, aes(x = healthstate, y = distance))+
   geom_boxplot(lwd=1) +
   stat_boxplot(geom = "errorbar", width = 0.2, lwd = 1) + 
   geom_jitter(position=position_jitter(width=.1, height=0), aes(fill = conditionshort, colour = Site, shape = species), size=4, stroke = 1.5)+
-  scale_color_manual(labels = c("Existing", "Outbreak"), values = c("gray55", "black")) +
+  scale_color_manual(labels = c("Black Point", "Buck Island"), values = c("gray55", "black")) +
   scale_fill_manual(values = c("#7570B3", "#1B9E77", "#D95F02")) +
-  scale_shape_manual(labels = c(expression(italic("Colpophyllia natans")), expression(italic("Montastrea cavernosa")), expression(italic("Meandrina meandrites")), expression(italic("Orbicella franksi"))), values=c(21, 22, 24, 25)) +
+  scale_shape_manual(labels = c(expression(italic("Colpophyllia natans")), expression(italic("Montastrea cavernosa")), expression(italic("Orbicella franksi")), expression(italic("Meandrina meandrites"))), values=c(21, 22, 24, 25)) +
   theme(axis.title.x=element_blank())+
   theme(text=element_text(size=14))+
   theme(strip.text.y=element_text(face="italic",size=14))+
@@ -409,7 +417,7 @@ ggplot(dis2.meta, aes(x = healthstate, y = distance))+
 <img src="Figures/fig-Dispersion Analysis-1.png" width="672" />
 
 ```r
-#ggsave("Rfigures/DistToCentroid_healthstate.pdf", width = 6, height = 7) 
+#ggsave("~/Google Drive (cbecker@whoi.edu)/SCTLD_STT/Rfigures/DistToCentroid_healthstate.pdf", width = 6, height = 7) 
 ```
 
 ### Figure 3c. Near-coral Seawater microbial beta diversity
@@ -445,6 +453,8 @@ Variance1 <- 100 * signif(Variance[1], 2) #extract percent explained by variance
 Variance2 <- 100 * signif(Variance[2], 2) #extract percent explained by variance 2
 
 pcoa.sw2 <- cbind(pcoa.sw$points, metadata_sw) # combine the Pcoa values with metadata for easier plotting
+pcoa.sw2$species <- factor(pcoa.sw2$species, levels = c("CNAT", "MCAV", "OFRA", "MMEA")) #adjust the levels so they plot correctly!
+
 
 #plot the data
 ggplot(pcoa.sw2, aes(x = pcoa.sw2[,1], y = pcoa.sw2[,2], shape = species, fill = conditionshort, color = Site)) +
@@ -453,7 +463,7 @@ ggplot(pcoa.sw2, aes(x = pcoa.sw2[,1], y = pcoa.sw2[,2], shape = species, fill =
   labs(x = paste0("PCoA1, ", Variance1, "%"), y = paste0("PCoA2, ", Variance2, "%"), title = "Seawater - PCoA of BC Dissimilarity", fill = "Condition", shape = "Coral Species", color = "Reef") +
   scale_color_manual(values = c("gray55", "black")) +
   scale_fill_manual(values = c("#D95F02", "#1B9E77", "#7570B3")) +
-  scale_shape_manual(labels = c(expression(italic("Colpophyllia natans")), expression(italic("Montastraea cavernosa")), expression(italic("Meandrina meandrites")), expression(italic("Orbicella franksi"))), values=c(21, 22, 24, 25)) +
+  scale_shape_manual(labels = c(expression(italic("Colpophyllia natans")), expression(italic("Montastraea cavernosa")), expression(italic("Orbicella franksi")), expression(italic("Meandrina meandrites"))), values=c(21, 22, 24, 25)) +
   guides(fill = guide_legend(override.aes=list(shape=21))) +
   theme(legend.text.align = 0)
 ```
@@ -461,7 +471,7 @@ ggplot(pcoa.sw2, aes(x = pcoa.sw2[,1], y = pcoa.sw2[,2], shape = species, fill =
 <img src="Figures/fig-Manuscript analysis PCoA Seawater-1.png" width="672" />
 
 ```r
-#ggsave("Rfigures/PCoA_bray_log_STT2020_Seawater.pdf", width = 7, height = 8)
+#ggsave("~/Google Drive (cbecker@whoi.edu)/SCTLD_STT/Rfigures/PCoA_bray_log_STT2020_Seawater.pdf", width = 7, height = 8)
 
 #Permanova to see the effect of Site, healthstate, and coral species on structuring the microbial communities. Also check out the interaction of site and species. 
 perm<-adonis(ASV.sw.log.b ~ Site, metadata_sw) #So we can clearly see that There is a significant effect of site on structuring seawater communities (p<0.001, R2 of 0.67)
@@ -526,12 +536,14 @@ str(data.meta.coral.long)
 #Adjust the necessary levels 
 data.meta.coral.long$healthstate <- factor(data.meta.coral.long$healthstate, levels = c("H", "D")) #adjust the levels so they plot correctly!
 data.meta.coral.long$conditionshort <- factor(data.meta.coral.long$conditionshort, levels = c("HH", "HD", "DD"))
+data.meta.coral.long$species <- factor(data.meta.coral.long$species, levels = c("CNAT", "MCAV", "OFRA", "MMEA")) #adjust the levels so they plot correctly!
 
 data.meta.coral.long$ASV <- factor(data.meta.coral.long$ASV, levels = c("ASV52",
 "ASV21",
 "ASV48",
 "ASV101",
 "ASV263",
+"ASV1012",
 "ASV226",
 "ASV185",
 "ASV44",
@@ -550,8 +562,7 @@ data.meta.coral.long$ASV <- factor(data.meta.coral.long$ASV, levels = c("ASV52",
 "ASV54",
 "ASV67",
 "ASV96",
-"ASV126", 
-"ASV1012"))
+"ASV126"))
 
 #Add taxonomic information to the coral.long data frame so that you can color points by the taxonomic information
 long.withtaxa <- merge(data.meta.coral.long, tax.asv.coral, by.x = "ASV", by.y = "ASV")
@@ -578,7 +589,7 @@ ggplot(long.withtaxa.nonzero, aes(x = sample, y = ASV, fill = Genus)) +
 <img src="Figures/fig-Bubble plot of disease-associated ASVs in coral tissue samples-1.png" width="960" />
 
 ```r
-#ggsave("Rfigures/Bubbleplot_sctld_asvs_in_CoralTissue_2.pdf", width = 10, height = 7)
+#ggsave("~/Google Drive (cbecker@whoi.edu)/SCTLD_STT/Rfigures/Bubbleplot_sctld_asvs_in_CoralTissue_2.pdf", width = 10, height = 7)
 ```
 
 ## Figure 5
@@ -624,12 +635,15 @@ str(data.meta.long)
 data.meta.long$healthstate <- factor(data.meta.long$healthstate, levels = c("H", "D")) #adjust the levels so they plot correctly!
 data.meta.long$condition <- factor(data.meta.long$condition, levels = c("No Lesion", "Healthy", "Diseased")) # Adjust the levels
 data.meta.long$conditionshort <- factor(data.meta.long$conditionshort, levels = c("HH", "HD", "DD"))
+data.meta.long$species <- factor(data.meta.long$species, levels = c("CNAT", "MCAV", "OFRA", "MMEA")) #adjust the levels so they plot correctly!
+
 
 data.meta.long$ASV <- factor(data.meta.long$ASV, levels = c("ASV52",
 "ASV21",
 "ASV48",
 "ASV101",
 "ASV263",
+"ASV1012",
 "ASV226",
 "ASV185",
 "ASV44",
@@ -648,8 +662,7 @@ data.meta.long$ASV <- factor(data.meta.long$ASV, levels = c("ASV52",
 "ASV54",
 "ASV67",
 "ASV96",
-"ASV126",
-"ASV1012"))
+"ASV126"))
 
 #Add taxonomic information to the coral.long data frame so that you can color points by the taxonomic information
 long.withtaxa.sw <- merge(data.meta.long, tax.asv.sw, by.x = "ASV", by.y = "ASV")
@@ -675,7 +688,7 @@ ggplot(long.withtaxasw.nonzero, aes(x = sample, y = ASV, fill = Genus)) +
 <img src="Figures/fig-Bubble plot of potential pathogens in the coral seawater-1.png" width="864" />
 
 ```r
-#ggsave("Rfigures/Bubbleplot_sctld_asvs_in_SW_2.pdf", width = 9, height = 7)
+#ggsave("~/Google Drive (cbecker@whoi.edu)/SCTLD_STT/Rfigures/Bubbleplot_sctld_asvs_in_SW_2.pdf", width = 9, height = 7)
 
 ## Further significance testing on disease-associated ASVs in seawater
 # Subset only the ASVs of interest and do the multiple testing part of corncob
@@ -686,6 +699,8 @@ ps.sw.counts <- ps %>% #corncob requires counts, so make a phyloseq object with 
 
 sample_data(ps.sw.counts)$healthstate <- factor(sample_data(ps.sw.counts)$healthstate, levels=c("H","D")) #adjust the levels, so H is the control in tests
 sample_data(ps.sw.counts)$condition <- factor(sample_data(ps.sw.counts)$condition, levels = c("No Lesion", "Healthy", "Diseased")) # Adjust the levels
+sample_data(ps.sw.counts)$species <- factor(sample_data(ps.sw.counts)$species, levels = c("CNAT", "MCAV", "OFRA", "MMEA")) #adjust the levels so they plot correctly!
+
 
 ps.sw.da <- ps.sw.counts %>%
   phyloseq::subset_taxa(ASV %in% sctld_asv) #subset the ASVs that were significantly associated with diseased lesions in at least one coral or in the all coral test.
@@ -774,6 +789,8 @@ Variance2 <- 100 * signif(Variance[2], 2) #extract percent explained by variance
 
 #Plot principal coordinates 1 and 2 in ggplot
 pcoa.meta <- cbind(pcoa$points, metadata) # combine the Pcoa values with metadata for easier plotting
+pcoa.meta$species <- factor(pcoa.meta$species, levels = c("CNAT", "MCAV", "OFRA", "MMEA")) #adjust the levels so they plot correctly!
+
 
 ggplot(pcoa.meta, aes(x = pcoa.meta[,1], y = pcoa.meta[,2], colour = sampletype, shape = species, fill = conditionshort)) +
   geom_point(size = 4, stroke = 2) +
@@ -782,7 +799,7 @@ ggplot(pcoa.meta, aes(x = pcoa.meta[,1], y = pcoa.meta[,2], colour = sampletype,
   theme_bw() +
   scale_color_manual(labels = c("Near-coral seawater", "Coral tissue"), values = c("gray55", "black")) +
   scale_fill_manual(values = c("#D95F02", "#1B9E77", "#7570B3")) +
-  scale_shape_manual(labels = c(expression(italic("Colpophyllia natans")), expression(italic("Montastraea cavernosa")), expression(italic("Meandrina meandrites")), expression(italic("Orbicella franksi"))), values=c(21, 22, 24, 25)) +
+  scale_shape_manual(labels = c(expression(italic("Colpophyllia natans")), expression(italic("Montastraea cavernosa")), expression(italic("Orbicella franksi")), expression(italic("Meandrina meandrites"))), values=c(21, 22, 24, 25)) +
   guides(fill = guide_legend(override.aes=list(shape=21))) +
   theme(legend.text.align = 0)
 ```
@@ -790,7 +807,7 @@ ggplot(pcoa.meta, aes(x = pcoa.meta[,1], y = pcoa.meta[,2], colour = sampletype,
 <img src="Figures/fig-Manuscript Analysis PCoA All-1.png" width="672" />
 
 ```r
-#ggsave("Rfigures/PCoA_bray_log_STT2020_all.pdf", width = 7, height = 8)
+#ggsave("~/Google Drive (cbecker@whoi.edu)/SCTLD_STT/Rfigures/PCoA_bray_log_STT2020_all.pdf", width = 7, height = 8)
 
 #Permanova between seawater and coral samples...
 perm <- adonis(ASV.log.b ~ sampletype, metadata) #So we can clearly see that the ecosphere and seawater samples are significantly different from one another. THis is to be expected
@@ -838,6 +855,8 @@ Variance2 <- 100 * signif(Variance[2], 2) #extract percent explained by variance
 
 #GGPLOT2 plotting
 pcoa.coral2 <- cbind(pcoa.coral$points, meta_coralH) # combine the Pcoa values with metadata for easier plotting
+pcoa.coral2$species <- factor(pcoa.coral2$species, levels = c("CNAT", "MCAV", "OFRA", "MMEA")) #adjust the levels so they plot correctly!
+
 theme_set(theme_bw())
 
 #principal coordinates 1 and 2
@@ -845,9 +864,9 @@ ggplot(pcoa.coral2, aes(x = pcoa.coral2[,1]*(-1), y = pcoa.coral2[,2], fill = co
   geom_point(size = 4, stroke = 2) +
   coord_fixed() + #aspect ratio of 1
   labs(x = paste0("PCoA1, ", Variance1, "%"), y = paste0("PCoA2, ", Variance2, "%"), title = "Healthy Coral tissue PCoA", fill = "Condition", shape = "Coral Species", color = "Reef") +
-  scale_color_manual(labels = c("Existing", "Outbreak"), values = c("gray55", "black")) +
+  scale_color_manual(labels = c("Black Point", "Buck Island"), values = c("gray55", "black")) +
   scale_fill_manual(values = c("#1B9E77", "#7570B3")) +
-  scale_shape_manual(labels = c(expression(italic("Colpophyllia natans")), expression(italic("Montastraea cavernosa")), expression(italic("Meandrina meandrites")), expression(italic("Orbicella franksi"))), values=c(21, 22, 24, 25)) +
+  scale_shape_manual(labels = c(expression(italic("Colpophyllia natans")), expression(italic("Montastraea cavernosa")), expression(italic("Orbicella franksi")), expression(italic("Meandrina meandrites"))), values=c(21, 22, 24, 25)) +
   guides(fill = guide_legend(override.aes=list(shape=21))) +
   theme(legend.text.align = 0) #+
 ```
@@ -856,8 +875,158 @@ ggplot(pcoa.coral2, aes(x = pcoa.coral2[,1]*(-1), y = pcoa.coral2[,2], fill = co
 
 ```r
   #facet_wrap(. ~ Site)
-#ggsave("Rfigures/PCoA_bray_log_STT2020_HEALTHY_Coral.pdf", width = 7, height = 7) 
+ggsave("~/Google Drive (cbecker@whoi.edu)/SCTLD_STT/Rfigures/PCoA_bray_log_STT2020_HEALTHY_Coral.pdf", width = 7, height = 7) 
+
+#Permanova to see the effect of Site, healthstate, condition, and coral species on structuring the microbial communities in coral tissue/mucus slurry communities
+perm<-adonis(ASV.coral.log.b ~ Site, meta_coralH) #So we can clearly see that There is a slightly significant (p = 0.03) effect of site on structuring coral microbiomes
+print(perm)
 ```
+
+## Supplementary Figure 2b
+### PCoA of only Colpophyllia natans and Montastraea cavernosa, which were sampled at both reefs
+
+```r
+##### Check out only CNAT and MCAV corals to see what effect location has on coral microbiome structure. These were the only corals sampled on two reefs.
+#import the ASV data that has been filtered for contaminants and low abundance reads. 
+ASV <- read.table("ASV_STT2020_filt_decontam.txt", sep = "\t", row.names = 1, header = TRUE)
+taxa <- as.matrix(read.table("taxonomy_STT2020_nospecies_filt_decontam.txt", sep = "\t", row.names = 1, header = TRUE))
+metadata <- read.table("metadata_STT2020_filt_decontam.txt", sep = "\t", header = TRUE)
+
+#Adjust the metadata to have only coral samples from CNAT and MCAV
+meta_CNATMCAV <- metadata %>%
+  filter(sampletype == "tiss") %>%
+  filter(!is.na(healthstate)) %>%
+  filter(Coral != "CNAT9") %>%
+  filter(species %in% c("MCAV", "CNAT"))
+
+#Remove the samples from the ASV table that are no longer represented in the metadata tibble
+idx <- match(meta_CNATMCAV$X, rownames(ASV))
+ASV.coral <- ASV[idx, ]
+
+ASV.coral <- apply(ASV.coral, 1, relabund) #Apply the relative abundance function (From Figure 3a) to each row (sample) in the ASV data frame
+dim(ASV.coral)
+```
+
+```
+## [1] 2010   34
+```
+
+```r
+ASV.coral <- ASV.coral[rowSums(ASV.coral) != 0, ] #get rid of ASVs that have no abundance in any samples
+dim(ASV.coral) #check to see how many ASVs are left. Looks like 1808 ASVs are left.
+```
+
+```
+## [1] 1502   34
+```
+
+```r
+ASV.coral <- t(ASV.coral) #make sure sample names are rows
+ASV.coral.log <- log(ASV.coral+1) #Log transform the realtive abundance data, where I add a 1 pseudocount to everything
+
+ASV.coral.log.b <- vegdist(ASV.coral.log, "bray") #calculate bray curtis dissimilarity
+pcoa.coral <- cmdscale(ASV.coral.log.b, k=(3), eig=TRUE) #metric dimensional scaling (principal coordinates analysis)
+barplot(pcoa.coral$eig) #take a look at what principal coordinates best explain the data. There is a small difference between 2 and 3, so also plot principal coordinates 2 and 3.
+```
+
+<img src="Figures/fig-unnamed-chunk-1-1.png" width="672" />
+
+```r
+pcoa.eig <- eigenvals(pcoa.coral) #extract eigenvalues
+Variance <- pcoa.eig / sum(pcoa.eig) #calculate the percent of variance explained by each axis
+Variance1 <- 100 * signif(Variance[1], 2) #extract percent explained by variance 1
+Variance2 <- 100 * signif(Variance[2], 2) #extract percent explained by variance 2
+
+#GGPLOT2 plotting
+pcoa.coral2 <- cbind(pcoa.coral$points, meta_CNATMCAV) # combine the Pcoa values with metadata for easier plotting
+
+theme_set(theme_bw())
+
+#principal coordinates 1 and 2
+ggplot(pcoa.coral2, aes(x = pcoa.coral2[,1]*(-1), y = pcoa.coral2[,2], fill = conditionshort, colour = Site, shape = species)) +
+  geom_point(size = 4, stroke = 2) +
+  coord_fixed() + #aspect ratio of 1
+  labs(x = paste0("PCoA1, ", Variance1, "%"), y = paste0("PCoA2, ", Variance2, "%"), title = "CNAT and MCAV PCoA", fill = "Condition", shape = "Coral Species", color = "Reef") +
+  scale_color_manual(labels = c("Black Point", "Buck Island"), values = c("gray55", "black")) +
+  scale_fill_manual(values = c("#D95F02", "#1B9E77", "#7570B3")) +
+  scale_shape_manual(labels = c(expression(italic("Colpophyllia natans")), expression(italic("Montastraea cavernosa"))), values=c(21, 22)) +
+  guides(fill = guide_legend(override.aes=list(shape=21))) +
+  theme(legend.text.align = 0) #+
+```
+
+<img src="Figures/fig-unnamed-chunk-1-2.png" width="672" />
+
+```r
+  #facet_wrap(. ~ Site)
+#ggsave("~/Google Drive (cbecker@whoi.edu)/SCTLD_STT/Rfigures/PCoA_bray_log_STT2020_CNAT_MCAV_Coral.pdf", width = 7, height = 7) 
+
+#Permanova to see the effect of Site, healthstate, condition, and coral species on structuring the microbial communities in coral tissue/mucus slurry communities
+perm<-adonis(ASV.coral.log.b ~ Site, meta_CNATMCAV) #So we can clearly see that There is a slightly significant (p = 0.03) effect of site on structuring coral microbiomes
+print(perm)
+```
+
+```
+## 
+## Call:
+## adonis(formula = ASV.coral.log.b ~ Site, data = meta_CNATMCAV) 
+## 
+## Permutation: free
+## Number of permutations: 999
+## 
+## Terms added sequentially (first to last)
+## 
+##           Df SumsOfSqs MeanSqs F.Model      R2 Pr(>F)
+## Site       1     0.399 0.39899  1.3729 0.04114  0.162
+## Residuals 32     9.300 0.29063         0.95886       
+## Total     33     9.699                 1.00000
+```
+
+```r
+perm<-adonis(ASV.coral.log.b ~ healthstate, meta_CNATMCAV) #Looks like healthstate has a signifcant influence on the structuring of microbial communities in coral tissue. I also find it interesting that this effect isstronger than the effect of site on these communities. 
+print(perm)
+```
+
+```
+## 
+## Call:
+## adonis(formula = ASV.coral.log.b ~ healthstate, data = meta_CNATMCAV) 
+## 
+## Permutation: free
+## Number of permutations: 999
+## 
+## Terms added sequentially (first to last)
+## 
+##             Df SumsOfSqs MeanSqs F.Model      R2 Pr(>F)    
+## healthstate  1    2.9683 2.96833  14.112 0.30604  0.001 ***
+## Residuals   32    6.7307 0.21033         0.69396           
+## Total       33    9.6990                 1.00000           
+## ---
+## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+```
+
+```r
+perm<-adonis(ASV.coral.log.b ~ conditionshort, meta_CNATMCAV) #Looks like healthstate has a signifcant influence on the structuring of microbial communities in coral tissue. I also find it interesting that this effect isstronger than the effect of site on these communities. 
+print(perm)
+```
+
+```
+## 
+## Call:
+## adonis(formula = ASV.coral.log.b ~ conditionshort, data = meta_CNATMCAV) 
+## 
+## Permutation: free
+## Number of permutations: 999
+## 
+## Terms added sequentially (first to last)
+## 
+##                Df SumsOfSqs MeanSqs F.Model      R2 Pr(>F)    
+## conditionshort  2    3.1100 1.55498  7.3158 0.32065  0.001 ***
+## Residuals      31    6.5891 0.21255         0.67935           
+## Total          33    9.6990                 1.00000           
+## ---
+## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+```
+
 
 ## Supplementary Figure 3
 ### Boxplots denoting range in Bray-Curtis Dissimilarity values within healthy (HH = purple and HD = green) and diseased (DD = orange) coral tissue microbiomes.
@@ -929,10 +1098,10 @@ ggplot(diss, aes(x = health, y = bc)) +
   scale_fill_manual(values = c("#7570B3", "#1B9E77", "#D95F02"))
 ```
 
-<img src="Figures/fig-unnamed-chunk-1-1.png" width="672" />
+<img src="Figures/fig-unnamed-chunk-2-1.png" width="672" />
 
 ```r
-#ggsave("Rfigures/BCvalues_health_Binary.pdf", width = 6, height = 7) 
+#ggsave("~/Google Drive (cbecker@whoi.edu)/SCTLD_STT/Rfigures/BCvalues_health_Binary.pdf", width = 6, height = 7) 
 
 #Do a Kruskal-Wallis test to see if there are signficant differences in the dissimilarity dataframe by site...My question: Is there a significant difference in pairwise dissimilarity between site groups?
 kruskal.test(bc ~ condition, data = diss)
@@ -1024,17 +1193,17 @@ p4 <- plot_bar(subset_samples(ps_ra_ofra, sampletype == "tiss"), fill="Class") +
   theme(strip.text=element_text(face="bold")) +
   scale_fill_manual(values=palette) +
   facet_grid(. ~ conditionshort, scales = "free", space = "free") +
-  ggtitle("Orbicella franksii") +
+  ggtitle("Orbicella franksi") +
   theme(plot.title = element_text(face="italic")) +
   theme(legend.position = "none") +
   theme(axis.title.x = element_blank(), axis.text.x = element_blank())
 
 # adjust width and height until it looks right for double columns
-#pdf("Rfigures/Barcharts_Class_tissue.pdf", width = 18, height = 10)
-plot_grid(p1,p2,p3,p4, labels = c("A","B","C","D"), ncol = 2, nrow = 2)
+#pdf("~/Google Drive (cbecker@whoi.edu)/SCTLD_STT/Rfigures/Barcharts_Class_tissue.pdf", width = 18, height = 10)
+plot_grid(p3,p1,p4,p2, labels = c("A","B","C","D"), ncol = 2, nrow = 2)
 ```
 
-<img src="Figures/fig-unnamed-chunk-2-1.png" width="960" />
+<img src="Figures/fig-unnamed-chunk-3-1.png" width="960" />
 
 ```r
 #dev.off()
@@ -1050,7 +1219,7 @@ grid.newpage()
 grid.draw(legend)
 ```
 
-<img src="Figures/fig-unnamed-chunk-2-2.png" width="960" />
+<img src="Figures/fig-unnamed-chunk-3-2.png" width="960" />
 
 ## Supplementary Figures 5 - 8. Differential abundance analyses between healthy and diseased coral tissue/mucus slurry samples.
 
@@ -1171,7 +1340,7 @@ ggplot(cnat.forgraph, aes(x = asvtaxa, y = Estimate, fill = Family)) +
 <img src="Figures/fig-Figure S5-1.png" width="672" />
 
 ```r
-#ggsave("CNAT_da_final_stt2020.pdf", width = 8, height = 7)
+#ggsave("~/Google Drive (cbecker@whoi.edu)/SCTLD_STT/Rfigures/CNAT_da_final_stt2020.pdf", width = 8, height = 7)
 ```
 
 ### Figure S6. Significantly differentially abundant ASVs between diseased and healthy tissue in _Montastraea cavernosa_. 
@@ -1198,7 +1367,7 @@ ggplot(mcav.forgraph, aes(x = asvtaxa, y = Estimate, fill = Family)) +
 <img src="Figures/fig-Figure S6-1.png" width="960" />
 
 ```r
-#ggsave("MCAV_da_final_stt2020.pdf", width = 10, height = 8)
+#ggsave("~/Google Drive (cbecker@whoi.edu)/SCTLD_STT/Rfigures/MCAV_da_final_stt2020.pdf", width = 10, height = 8)
 ```
 
 ### Figure S7. Significantly differentially abundant ASVs between diseased and healthy tissue in _Meandrina meandrites_.
@@ -1224,7 +1393,7 @@ ggplot(mmea.forgraph, aes(x = asvtaxa, y = Estimate, fill = Family)) +
 <img src="Figures/fig-Figure S7-1.png" width="768" />
 
 ```r
-#ggsave("MMEA_da_final_stt2020.pdf", width = 8, height = 4)
+#ggsave("~/Google Drive (cbecker@whoi.edu)/SCTLD_STT/Rfigures/MMEA_da_final_stt2020.pdf", width = 8, height = 4)
 ```
 
 ### Figure S8. Significantly differentially abundant ASVs between diseased and healthy tissue in _Orbicella franksi_.
@@ -1250,7 +1419,7 @@ ggplot(ofra.forgraph, aes(x = asvtaxa, y = Estimate, fill = Family)) +
 <img src="Figures/fig-Figure S8-1.png" width="768" />
 
 ```r
-#ggsave("OFRA_da_final_stt2020.pdf", width = 8, height = 7)
+#ggsave("~/Google Drive (cbecker@whoi.edu)/SCTLD_STT/Rfigures/OFRA_da_final_stt2020.pdf", width = 8, height = 7)
 ```
 
 
